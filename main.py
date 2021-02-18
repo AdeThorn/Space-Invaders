@@ -10,7 +10,6 @@ import time
 
 #  2.implement player collisions NOTWORKING
 # implement losing lives  1.
-#implement levels         3.
 #implement playing with username 
 #implement main menu
 #implement top 10 highscores on loading screen
@@ -155,12 +154,17 @@ def main_game_loop():
     lives=3
     score=0
     level=1
-    levelup=True
+    levelup=False
     player=Player(200,200)
     enemies=[]
     timeToSpawn=random.randint(3,4)
     spawnYet=False
     spawnTimes=[] #list of times to spawn relative to current time i.e 1 sec from now,3 sec from now
+    for num in range(20):
+        spawnTimes.append(random.randrange(6)) #time to spawn enemies for 1st round
+    enemiesHit=0 #TEST to see if leveling up when should
+    amountAtOnce=2 #max amount of enemies can spawn at same time for round 1 to 5
+    startNextRound=0 #dummy value so starNExtRound is declared before use
 
     #function for when you lose a life pause screen then restart round
     def lose_life():
@@ -173,10 +177,12 @@ def main_game_loop():
 
         livesText=font.render('LIVES: '+ str(lives),1,(255,255,255))
         scoreText=font.render('SCORE: '+ str(score),1,(255,255,255))
+        levelText=font.render('LEVEL: '+ str(level),1, (255,255,255) )
         SCREEN.blit(livesText,(650,10))
         SCREEN.blit(scoreText,(5,10))
+        SCREEN.blit(levelText,(5,HEIGHT-20))
 
-    def spawnEnemy(currentTime,spawnTimes,timeToSpawn,spawnYet):
+    def spawnEnemy(currentTime,spawnTimes,timeToSpawn,spawnYet,amountAtOnce):
 
         if currentTime>timeToSpawn:
             spawnYet=False
@@ -187,11 +193,15 @@ def main_game_loop():
             
 
         elif currentTime==timeToSpawn and spawnYet==False:
-            #spawn enemy off map 
+            
             #SPAWN blue ENEMY VERY RARELY
-            x=random.randint(1,WIDTH-10)
-            enemy=Enemy(x,-2,random.choice(["green","red"]))
-            enemies.append(enemy)
+            #determine how many enemies to spawn at same time
+            amountToSpawn=random.choice(range(1,amountAtOnce+1))
+            for num in range(amountToSpawn):
+                #spawn enemy off map 
+                x=random.randint(1,WIDTH-55)
+                enemy=Enemy(x,-2,random.choice(["green","red"]))
+                enemies.append(enemy)
             spawnYet=True
 
         return [timeToSpawn,spawnYet]
@@ -212,7 +222,9 @@ def main_game_loop():
                     run=False
         
         ######################LEVEL UP VARIABLES#####################
-        if levelup:
+        if levelup and pygame.time.get_ticks()//1000>=startNextRound:
+            level+=1
+            
             if level<5:
                 amount=20
                 timeBound=6   #upperbound for randrange
@@ -233,7 +245,7 @@ def main_game_loop():
         #check if time to spawn enemy
         currentTime=pygame.time.get_ticks()//1000
         if currentTime>=timeToSpawn:
-            timeToSpawn,spawnYet=spawnEnemy(currentTime,spawnTimes,timeToSpawn,spawnYet)  #returns next time to spawn and spawnYet
+            timeToSpawn,spawnYet=spawnEnemy(currentTime,spawnTimes,timeToSpawn,spawnYet,amountAtOnce)  #returns next time to spawn and spawnYet
        
         ######################MOVING PLAYER#####################
         keys=pygame.key.get_pressed()
@@ -259,6 +271,8 @@ def main_game_loop():
                 if laser.hit(enemy):
                     player.lasers.remove(laser)
                     score+=enemy.score
+                    enemiesHit+=1
+                    print(f"Enemies hit: {enemiesHit}")
                     enemies.remove(enemy)
             enemy.push()
             
@@ -284,7 +298,9 @@ def main_game_loop():
        ######################MAINTENANCE#####################
         if len(enemies)==0 and len(spawnTimes)==0:
             levelup=True
-            level+=1
+            
+            #Wait 2 seconds before starting to spawn enemies again
+            startNextRound=pygame.time.get_ticks()//1000 + 2
 
 
         #make sure laser either on screen or deleted
