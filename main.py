@@ -4,12 +4,11 @@ import os
 import random
 import time
 ##TODO
-#make number of bullets max of them limited
-#have blue shoot when player in small range, green in larger range and red completely random
-#blue is rare villian
 
-#  2.implement player collisions NOTWORKING
-# implement losing lives  1.
+
+#have blue shoot when player in small range, green in larger range and red completely random
+
+#implement player collision with enemy
 #implement playing with username 
 #implement main menu
 #implement top 10 highscores on loading screen
@@ -103,8 +102,8 @@ class Enemy(Ship):
             self.score=15
             self.laser_col=YELLOW_LASER
         elif color=="blue":
-            laser_vel=18
-            ship_vel=12
+            laser_vel=8
+            ship_vel=6
             cooldown_max=9
             self.score=30
             self.laser_col=BLUE_LASER
@@ -139,7 +138,12 @@ class Laser():
         screen.blit(self.img,(self.x,self.y))
 
     def hit(self,ship):
-        offset=((self.x)-(ship.x-ship.width//2),self.y-(ship.y-ship.height//2))
+        if type(ship)==Enemy:
+            offset=((self.x)-(ship.x-ship.width//2),self.y-(ship.y-ship.height//2))
+
+        elif type(ship)==Player:
+            offset=(self.x-ship.x,self.y-ship.y)
+            
         return self.mask.overlap(ship.mask,offset)
         
 
@@ -155,16 +159,16 @@ def main_game_loop():
     score=0
     level=1
     levelup=False
-    player=Player(200,200)
+    player=Player(250,500)
     enemies=[]
     timeToSpawn=random.randint(3,4)
     spawnYet=False
     spawnTimes=[] #list of times to spawn relative to current time i.e 1 sec from now,3 sec from now
-    for num in range(20):
+    for num in range(10):
         spawnTimes.append(random.randrange(6)) #time to spawn enemies for 1st round
-    enemiesHit=0 #TEST to see if leveling up when should
     amountAtOnce=2 #max amount of enemies can spawn at same time for round 1 to 5
     startNextRound=0 #dummy value so starNExtRound is declared before use
+    calculatedNextRoundTime=False
 
     #function for when you lose a life pause screen then restart round
     def lose_life():
@@ -183,7 +187,6 @@ def main_game_loop():
         SCREEN.blit(levelText,(5,HEIGHT-20))
 
     def spawnEnemy(currentTime,spawnTimes,timeToSpawn,spawnYet,amountAtOnce):
-
         if currentTime>timeToSpawn:
             spawnYet=False
             
@@ -194,7 +197,7 @@ def main_game_loop():
 
         elif currentTime==timeToSpawn and spawnYet==False:
             
-            #SPAWN blue ENEMY VERY RARELY
+            
             #determine how many enemies to spawn at same time
             amountToSpawn=random.choice(range(1,amountAtOnce+1))
             for num in range(amountToSpawn):
@@ -202,10 +205,66 @@ def main_game_loop():
                 x=random.randint(1,WIDTH-55)
                 enemy=Enemy(x,-2,random.choice(["green","red"]))
                 enemies.append(enemy)
+
+            #SPAWN blue ENEMY VERY RARELY and only if above level 5
+            if level>=5:
+                toSpawnBlue=random.randint(1,100)
+                if toSpawnBlue<=5:
+                    x=random.randint(1,WIDTH-55)
+                    enemy=Enemy(x,-2,"blue")
+                    enemies.append(enemy)
+
             spawnYet=True
 
         return [timeToSpawn,spawnYet]
-        
+    
+    #screen maintenance and level maintenance
+    def maintenance():
+        nonlocal levelup,calculatedNextRoundTime,lives,score
+
+        if len(enemies)==0 and len(spawnTimes)==0:
+            levelup=True
+            
+            if not calculatedNextRoundTime:
+                 #Wait 2 seconds before starting to spawn enemies again
+                startNextRound=pygame.time.get_ticks()//1000 + 2
+                calculatedNextRoundTime=True
+        #check if enemy is hit
+        for enemy in enemies:
+            for laser in player.lasers:
+                if laser.hit(enemy):
+                    player.lasers.remove(laser)
+                    score+=enemy.score
+                    enemies.remove(enemy)
+            enemy.push()
+            
+            if enemy.y> HEIGHT:
+                lives-=1
+                enemies.remove(enemy)
+
+            #shoot ~20% of the time
+            toShoot=random.randint(1,10)
+            if toShoot<=2 and len(enemy.lasers)<=4:
+                enemy.shoot()
+
+            #check if player is hit
+            for laser in enemy.lasers:
+                if laser.hit(player):
+                    enemy.lasers.remove(laser)
+                    lives-=1
+                if laser.y < HEIGHT and laser.y>0:
+                    laser.y +=laser.vel
+                else:
+                #delete laser if off screen
+                    enemy.lasers.remove(laser)
+
+        #make sure player laser either on screen or deleted
+        for laser in player.lasers:
+            if laser.y < HEIGHT and laser.y>0:
+                laser.y +=laser.vel
+            else:
+                #delete laser
+                player.lasers.pop(player.lasers.index(laser))
 
     #game loop
     run=True
@@ -223,20 +282,21 @@ def main_game_loop():
         
         ######################LEVEL UP VARIABLES#####################
         if levelup and pygame.time.get_ticks()//1000>=startNextRound:
+            calculatedNextRoundTime=False
             level+=1
             
             if level<5:
-                amount=20
-                timeBound=6   #upperbound for randrange
+                amount=10
+                timeBound=7   #upperbound for randrange
                 amountAtOnce=2 #max amount of enemies to spawn at one time
             elif level>5 and level<15:
-                amount=35
+                amount=15
                 timeBound=4
                 amountAtOnce=3
             else:
-                amount=50
+                amount=20
                 timeBound=3
-                amountAtOnce=4
+                amountAtOnce=3
             #compute relative times to spawn enemies
             for num in range(amount):
                 spawnTimes.append(random.randrange(timeBound))
@@ -266,52 +326,36 @@ def main_game_loop():
         if pygame.mouse.get_pressed()[0]: 
             player.shoot()
 
-        for enemy in enemies:
-            for laser in player.lasers:
-                if laser.hit(enemy):
-                    player.lasers.remove(laser)
-                    score+=enemy.score
-                    enemiesHit+=1
-                    print(f"Enemies hit: {enemiesHit}")
-                    enemies.remove(enemy)
-            enemy.push()
-            
-            if enemy.y> HEIGHT:
-                lives-=1
-                enemies.remove(enemy)
-                
 
-            #shoot ~20% of the time
-            toShoot=random.randint(1,10)
-            if toShoot<=2 and len(enemy.lasers)<=4:
-                enemy.shoot()
+        maintenance()
 
-            for laser in enemy.lasers:
-                if laser.hit(player):
-                    enemy.lasers.remove(laser)
-                    lives-=1
-                if laser.y < HEIGHT and laser.y>0:
-                    laser.y +=laser.vel
-                else:
-                #delete laser if off screen
-                    enemy.lasers.remove(laser)
-       ######################MAINTENANCE#####################
-        if len(enemies)==0 and len(spawnTimes)==0:
-            levelup=True
-            
-            #Wait 2 seconds before starting to spawn enemies again
-            startNextRound=pygame.time.get_ticks()//1000 + 2
-
-
-        #make sure laser either on screen or deleted
-        for laser in player.lasers:
-            if laser.y < HEIGHT and laser.y>0:
-                laser.y +=laser.vel
-            else:
-                #delete laser
-                player.lasers.pop(player.lasers.index(laser))
-
+        if lives==0:
+            run=False
+            lost_screen()
+     
         #updating window
         pygame.display.flip()
+
+def lost_screen():
+    run=True
+    while run:
+        font = pygame.font.SysFont('comicsans',30,True)
+        failedText=font.render('MISSION FAILED',1, (255,255,255) )
+        clickText=font.render('CLICK ANYWHERE TO START AGAIN',1, (255,255,255) )
+        SCREEN.blit(BG,(0,0))
+        SCREEN.blit(failedText,(300,20))
+        SCREEN.blit(clickText,(200,400))
+        pygame.display.flip()
+        for event in pygame.event.get():
+            if event.type==pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type==pygame.KEYDOWN:
+                if event.key==pygame.K_ESCAPE:
+                    run=False
+            if event.type==pygame.MOUSEBUTTONDOWN:
+                if event.button==1:
+                    run=False
+                    main_game_loop()
 
 main_game_loop()
