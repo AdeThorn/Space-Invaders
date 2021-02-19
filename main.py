@@ -8,10 +8,8 @@ import time
 
 #have blue shoot when player in small range, green in larger range and red completely random
 
-#implement player collision with enemy
-#implement playing with username 
-#implement main menu
-#implement top 10 highscores on loading screen
+#implement player collision with enemy 3.
+#implement screen flash when lose life and restart round
 ## implement enemies strafing after
 #every couple rounds up laser velocity by 1?? 
 #implement this later: hold all enemy lasers in 1 list so that when enemy dies its lasers arent removed from screen as well 
@@ -146,12 +144,7 @@ class Laser():
             
         return self.mask.overlap(ship.mask,offset)
         
-
-
-
-   
-
-def main_game_loop():
+def main_game_loop(username):
 
     #game variables
     font = pygame.font.SysFont('comicsans',30,True)
@@ -331,12 +324,13 @@ def main_game_loop():
 
         if lives==0:
             run=False
-            lost_screen()
+            save_score(username,score)
+            lost_screen(username)
      
         #updating window
         pygame.display.flip()
 
-def lost_screen():
+def lost_screen(username):
     run=True
     while run:
         font = pygame.font.SysFont('comicsans',30,True)
@@ -356,6 +350,130 @@ def lost_screen():
             if event.type==pygame.MOUSEBUTTONDOWN:
                 if event.button==1:
                     run=False
-                    main_game_loop()
+                    main_game_loop(username)
 
-main_game_loop()
+def save_score(username,score):
+    insertNotFound=True  #flag to see whether to log linenumber to insert at 
+    with open('scoreStorage.csv','r') as f:
+        newLines=[]
+        insertAtLine=-1 #dummy value to see if should be updating score storage
+        #current top 5 scores
+        for linenum in range(5):
+            prevInfo=f.readline()
+            newLines.append(prevInfo)
+            if prevInfo!='':
+                prevScore=int(prevInfo.split(',')[1])
+                if score>=prevScore and insertNotFound:
+                    insertAtLine=linenum
+                    insertNotFound=False
+            else: #if prev info==''
+                if insertNotFound: 
+                    insertAtLine=linenum
+                    insertNotFound=False
+
+    if insertAtLine != -1:    
+        newLines.insert(insertAtLine,f'{username},{score}\n')
+        newLines.pop(5) #keep number of lines in storage at 5
+        
+        #update scoreStorage
+        with open('scoreStorage.csv','w+') as f:
+            for line in newLines:
+                f.write(line)
+
+def username_screen():
+    font = pygame.font.SysFont('comicsans',30,True)
+    enterName=font.render('ENTER USERNAME:',1, (255,255,255) )
+    typingFlash=0 #variable to track when to flash '|'
+    onScreen=True
+    username=''
+    while onScreen:
+        typingFlash+=1
+        SCREEN.blit(BG,(0,0))
+        for event in pygame.event.get():
+            if event.type==pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            #updating username as user types
+            if event.type==pygame.KEYDOWN:
+                if event.key==pygame.K_ESCAPE:
+                    onScreen=False
+                if event.key==pygame.K_RETURN and username!='':
+                    main_game_loop(username)
+                elif event.key==pygame.K_BACKSPACE:
+                    username=username[:-1]
+                else:
+                    username+=event.unicode
+        #render username as it is typed
+        userText=font.render(username,1,(255,255,255))
+        typingPipe=font.render('|',1,(255,255,255))
+        flashOn=typingFlash%30
+        if flashOn<=20:
+            SCREEN.blit(typingPipe,(480+userText.get_width(),348))
+            
+        SCREEN.blit(enterName,(250,350))
+        SCREEN.blit(userText,(480,350))
+        pygame.display.flip()
+        clock.tick(60)
+
+def start_menu():
+    run=True
+    font = pygame.font.SysFont('comicsans',30,True)
+    hScoreText=font.render('HI-SCORE',1, (255,255,255) )
+    playText=font.render('PLAY',1, (255,255,255) )
+    titleText=font.render('SPACE INVADERS REBOOT',1, (255,255,255) )
+    nameText=font.render('NAME',1, (255,255,255) )
+    scoreText=font.render('SCORE',1, (255,255,255) )
+    scoreTableText=font.render('*SCORE TABLE*',1, (255,255,255) )
+    pointsText10=font.render('=10 POINTS',1, (255,255,255) )
+    pointsText15=font.render('=15 POINTS',1, (255,255,255) )
+    pointsText30=font.render('=30 POINTS',1, (255,255,255) )
+    play_button=pygame.Rect(340,340,60,20)
+    #Get 5 highest scores ever
+    hScores=[]
+    with open('scoreStorage.csv','r') as f:
+        for num in range(5):
+            line=f.readline()
+            if line=='':
+                break
+            else:
+                #add tuple of username and score
+                prevInfo=line.split(',')
+                prevScore=prevInfo[1].split()[0]
+                hScores.append((prevInfo[0],prevScore))
+    
+    while run:
+        SCREEN.blit(BG,(0,0))
+        SCREEN.blit(hScoreText,(330,10))
+        SCREEN.blit(nameText,(130,10))
+        SCREEN.blit(scoreText,(550,10))
+        i=0
+        for info in hScores:
+            i+=1
+            infoText=font.render(info[0]+' '*50+info[1],1,(255,255,255))
+            SCREEN.blit(infoText,(150,10+(i*30)))
+
+        pygame.draw.rect(SCREEN,(0,0,0),play_button)
+        SCREEN.blit(playText,(340,340))
+        SCREEN.blit(titleText,(230,390))
+        SCREEN.blit(scoreTableText,(290,460))
+        SCREEN.blit(RED_SPACE_SHIP ,(330,500))
+        SCREEN.blit(pointsText10,(400,515))
+        SCREEN.blit(GREEN_SPACE_SHIP,(330,550))
+        SCREEN.blit(pointsText15,(400,565))
+        SCREEN.blit(BLUE_SPACE_SHIP ,(340,600))
+        SCREEN.blit(pointsText30,(400,615))
+        pygame.display.flip()
+        for event in pygame.event.get():
+            if event.type==pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type==pygame.KEYDOWN:
+                if event.key==pygame.K_ESCAPE:
+                    run=False
+            #checking if clicked play button
+            if event.type==pygame.MOUSEBUTTONDOWN and event.button==1:
+                if play_button.collidepoint(pygame.mouse.get_pos()):
+                    run=False
+                    username_screen()
+
+start_menu()
