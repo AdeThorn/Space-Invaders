@@ -3,17 +3,6 @@ import pygame
 import os
 import random
 import time
-##TODO
-
-
-#have blue shoot when player in small range, green in larger range and red completely random
-
-#implement player collision with enemy 3.
-#implement screen flash when lose life and restart round
-## implement enemies strafing after
-#every couple rounds up laser velocity by 1?? 
-#implement this later: hold all enemy lasers in 1 list so that when enemy dies its lasers arent removed from screen as well 
-# and collisions between alsers
 
 
 #general setup 
@@ -27,12 +16,12 @@ pygame.display.set_caption("Space Invaders")
 
 
 # Load images// loading images return surface objects
-RED_SPACE_SHIP = pygame.image.load(os.path.join("assets", "pixel_ship_red_small.png"))
-GREEN_SPACE_SHIP = pygame.image.load(os.path.join("assets", "pixel_ship_green_small.png"))
-BLUE_SPACE_SHIP = pygame.image.load(os.path.join("assets", "pixel_ship_blue_small.png"))
+OCTOPUS = pygame.transform.scale(pygame.image.load(os.path.join("assets", "octopus.png")),(70,50))
+ALIEN = pygame.transform.scale(pygame.image.load(os.path.join("assets", "alien.png")),(70,50))
+UFO = pygame.transform.scale(pygame.image.load(os.path.join("assets", "ufo.png")),(70,50))
 
 # Player player
-PLAYER_SHIP = pygame.image.load(os.path.join("assets", "pixel_ship_yellow.png"))
+PLAYER_SHIP = pygame.transform.scale(pygame.image.load(os.path.join("assets", "spPlayer.png")),(70,50))
 
 # Lasers
 RED_LASER = pygame.image.load(os.path.join("assets", "pixel_laser_red.png"))
@@ -45,23 +34,23 @@ YELLOW_LASER = pygame.image.load(os.path.join("assets", "pixel_laser_yellow.png"
 BG=pygame.transform.scale(pygame.image.load(os.path.join("assets", "background.png")),(WIDTH,HEIGHT))
 
 class Ship():
-    def __init__(self,x,y,vel,cooldown_max,img,laser_vel):
-        ships={"player":PLAYER_SHIP,"red":RED_SPACE_SHIP,"green":GREEN_SPACE_SHIP,"blue":BLUE_SPACE_SHIP}
+    def __init__(self,x,y,vel,cooldown_max,model,laser_vel):
+        ships={"player":PLAYER_SHIP,"octopus":OCTOPUS,"alien":ALIEN,"ufo":UFO}
         self.x=x
         self.y=y
         self.vel=vel
         self.cooldown=0
         self.cooldown_max=cooldown_max
-        self.img=ships[img]
-        self.width=self.img.get_width()
-        self.height=self.img.get_height()
+        self.model=ships[model]
+        self.width=self.model.get_width()
+        self.height=self.model.get_height()
         self.lasers=[]
         self.l_vel=laser_vel
-        self.mask= pygame.mask.from_surface(self.img)
-        self.rect = self.img.get_rect()
+        self.mask= pygame.mask.from_surface(self.model)
+        self.rect = self.model.get_rect()
     
     def draw(self,screen):
-        screen.blit(self.img,(self.x,self.y))
+        screen.blit(self.model,(self.x,self.y))
         for laser in self.lasers:
             laser.draw(SCREEN)
     
@@ -79,6 +68,23 @@ class Ship():
 class Player(Ship):
     def __init__(self,x,y):
         super().__init__(x,y,6,8,"player",-8)
+    
+    #if player hit
+    def hit(self):
+        i=0 #pause and flash white screen
+        hitScreen=pygame.Surface((WIDTH,HEIGHT))
+        hitScreen.fill((255,0,0))
+        hitScreen.set_alpha(3)
+        while i < 50:
+            SCREEN.blit(hitScreen,(0,0))
+            pygame.display.update()
+            pygame.time.delay(10)
+            i+=1
+            for event in pygame.event.get():
+                if event.type==pygame.QUIT:
+                    i=51
+                    pygame.quit()
+
 
         
 
@@ -86,26 +92,26 @@ class Player(Ship):
 
 class Enemy(Ship):
 
-    def __init__(self,x,y,color):
-        if color=="red":
+    def __init__(self,x,y,model):
+        if model=="octopus":
             laser_vel=6
             ship_vel=3
             cooldown_max=12
             self.score=10
             self.laser_col=RED_LASER
-        elif color=="green":
+        elif model=="alien":
             laser_vel=7
             ship_vel=4
             cooldown_max=12
             self.score=15
             self.laser_col=YELLOW_LASER
-        elif color=="blue":
+        elif model=="ufo":
             laser_vel=8
             ship_vel=6
             cooldown_max=9
             self.score=30
             self.laser_col=BLUE_LASER
-        super().__init__(x,y,ship_vel,cooldown_max,color,laser_vel)
+        super().__init__(x,y,ship_vel,cooldown_max,model,laser_vel)
     
     def push(self):
         self.y+=self.vel
@@ -119,6 +125,12 @@ class Enemy(Ship):
             self.cooldown+=1
         if self.cooldown>self.cooldown_max:
             self.cooldown=0
+    def collide_with_player(self,player):
+        offset=(player.x-self.x,player.y-self.y)
+        #offset=(self.x-player.x,self.y-player.y)
+            
+        return self.mask.overlap(player.mask,offset)
+        
 
 class Laser():
 
@@ -136,12 +148,7 @@ class Laser():
         screen.blit(self.img,(self.x,self.y))
 
     def hit(self,ship):
-        if type(ship)==Enemy:
-            offset=((self.x)-(ship.x-ship.width//2),self.y-(ship.y-ship.height//2))
-
-        elif type(ship)==Player:
-            offset=(self.x-ship.x,self.y-ship.y)
-            
+        offset=(ship.x-self.x,ship.y-self.y) 
         return self.mask.overlap(ship.mask,offset)
         
 def main_game_loop(username):
@@ -163,9 +170,6 @@ def main_game_loop(username):
     startNextRound=0 #dummy value so starNExtRound is declared before use
     calculatedNextRoundTime=False
 
-    #function for when you lose a life pause screen then restart round
-    def lose_life():
-        pass
     def redraw_screen():
         SCREEN.blit(BG,(0,0)) #filling screen with baackground image at position 0,0
         player.draw(SCREEN)
@@ -195,16 +199,16 @@ def main_game_loop(username):
             amountToSpawn=random.choice(range(1,amountAtOnce+1))
             for num in range(amountToSpawn):
                 #spawn enemy off map 
-                x=random.randint(1,WIDTH-55)
-                enemy=Enemy(x,-2,random.choice(["green","red"]))
+                x=random.randint(1,WIDTH-75)
+                enemy=Enemy(x,-2,random.choice(["octopus","alien"]))
                 enemies.append(enemy)
 
-            #SPAWN blue ENEMY VERY RARELY and only if above level 5
+            #SPAWN UFO ENEMY VERY RARELY and only if above level 5
             if level>=5:
-                toSpawnBlue=random.randint(1,100)
-                if toSpawnBlue<=5:
+                toSpawnUfo=random.randint(1,100)
+                if toSpawnUfo<=5:
                     x=random.randint(1,WIDTH-55)
-                    enemy=Enemy(x,-2,"blue")
+                    enemy=Enemy(x,-2,"ufo")
                     enemies.append(enemy)
 
             spawnYet=True
@@ -229,6 +233,11 @@ def main_game_loop(username):
                     player.lasers.remove(laser)
                     score+=enemy.score
                     enemies.remove(enemy)
+            #check if enemy collides ith player
+            if enemy.collide_with_player(player):
+                lives-=1
+                player.hit()
+                enemies.remove(enemy) #destroy enemy ship
             enemy.push()
             
             if enemy.y> HEIGHT:
@@ -243,6 +252,7 @@ def main_game_loop(username):
             #check if player is hit
             for laser in enemy.lasers:
                 if laser.hit(player):
+                    player.hit()
                     enemy.lasers.remove(laser)
                     lives-=1
                 if laser.y < HEIGHT and laser.y>0:
@@ -449,18 +459,20 @@ def start_menu():
         i=0
         for info in hScores:
             i+=1
-            infoText=font.render(info[0]+' '*50+info[1],1,(255,255,255))
-            SCREEN.blit(infoText,(150,10+(i*30)))
+            infoName=font.render(info[0],1,(255,255,255))
+            SCREEN.blit(infoName,(140,10+(i*30)))
+            infoScore=font.render(info[1],1,(255,255,255))
+            SCREEN.blit(infoScore,(580,10+(i*30)))
 
         pygame.draw.rect(SCREEN,(0,0,0),play_button)
         SCREEN.blit(playText,(340,340))
         SCREEN.blit(titleText,(230,390))
         SCREEN.blit(scoreTableText,(290,460))
-        SCREEN.blit(RED_SPACE_SHIP ,(330,500))
+        SCREEN.blit(OCTOPUS ,(330,500))
         SCREEN.blit(pointsText10,(400,515))
-        SCREEN.blit(GREEN_SPACE_SHIP,(330,550))
+        SCREEN.blit(ALIEN,(330,550))
         SCREEN.blit(pointsText15,(400,565))
-        SCREEN.blit(BLUE_SPACE_SHIP ,(340,600))
+        SCREEN.blit(UFO ,(330,600))
         SCREEN.blit(pointsText30,(400,615))
         pygame.display.flip()
         for event in pygame.event.get():
